@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ESP_IDF
+#ifndef ARDUINO
 
 #include <stdint.h>
 #include <stdbool.h>
@@ -49,6 +49,7 @@ inline int digitalRead(uint8_t pin) {
 }
 
 // Timing functions
+#ifndef USE_ESPHOME
 inline unsigned long millis() {
     return (unsigned long)(esp_timer_get_time() / 1000);
 }
@@ -56,6 +57,7 @@ inline unsigned long millis() {
 inline unsigned long micros() {
     return (unsigned long)esp_timer_get_time();
 }
+#endif
 
 inline void delay(unsigned long ms) {
     vTaskDelay(ms / portTICK_PERIOD_MS);
@@ -212,4 +214,14 @@ inline void xt_wsr_ps(uint32_t ps) {
 #endif
 #define F_CPU (CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000L)
 
-#endif // ESP_IDF
+// Handle ESPHome namespacing
+#ifdef USE_ESPHOME
+namespace esphome {
+    uint32_t micros();
+    uint32_t millis();
+}
+using esphome::micros;
+using esphome::millis;
+#endif
+
+#endif // ARDUINO

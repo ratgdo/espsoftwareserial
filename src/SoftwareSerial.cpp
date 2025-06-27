@@ -19,7 +19,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 #include "SoftwareSerial.h"
-#if !defined(ESP_IDF) && !(defined(ESP_PLATFORM) && defined(IDF_VER))
+#ifdef ARDUINO
 #include <Arduino.h>
 #endif
 

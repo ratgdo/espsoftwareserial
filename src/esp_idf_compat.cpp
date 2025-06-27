@@ -1,8 +1,8 @@
-#ifdef ESP_IDF
+#ifndef ARDUINO
 
 #include "esp_idf_compat.h"
 
 // Global ESP instance
 ESPClass ESP;
 
-#endif // ESP_IDF
+#endif // ARDUINO
