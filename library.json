@@ -35,6 +35,6 @@
     },
     "dependencies":
     {
-        "dok-net/ghostl": "^1.0.0"
+        "ratgdo/ghostl": "^1.0.0"
     }
 }
