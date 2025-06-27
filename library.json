@@ -20,10 +20,19 @@
         }
     ],
     "license": "LGPL-2.1+",
-    "frameworks": "arduino",
+    "frameworks": ["arduino", "espidf"],
     "platforms": [
         "espressif8266", "espressif32"
     ],
+    "export": {
+        "include": [
+            "src/*.h",
+            "*.h"
+        ]
+    },
+    "build": {
+        "includeDir": "src"
+    },
     "dependencies":
     {
         "dok-net/ghostl": "^1.0.0"
