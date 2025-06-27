@@ -67,6 +67,15 @@ inline unsigned long millis() {
 inline unsigned long micros() {
     return (unsigned long)esp_timer_get_time();
 }
+#else
+// For ESPHome, make sure we have proper declarations
+namespace esphome {
+    uint32_t micros();
+    uint32_t millis();
+}
+// Import into global namespace
+using esphome::micros;
+using esphome::millis;
 #endif
 
 inline void delay(unsigned long ms) {
@@ -74,7 +83,19 @@ inline void delay(unsigned long ms) {
 }
 
 inline void delayMicroseconds(unsigned int us) {
-    esp_rom_delay_us(us);
+    if (us > 0) {
+        esp_rom_delay_us(us);
+    }
+}
+
+// For more precise timing
+inline void IRAM_ATTR delayMicrosecondsHard(uint32_t us) {
+    if (us > 0) {
+        uint32_t start = (uint32_t)esp_timer_get_time();
+        while (((uint32_t)esp_timer_get_time() - start) < us) {
+            // busy wait
+        }
+    }
 }
 
 // Interrupt functions
@@ -87,6 +108,11 @@ inline int digitalPinToInterrupt(uint8_t pin) {
 }
 
 inline void attachInterruptArg(uint8_t pin, void (*handler)(void*), void* arg, int mode) {
+    static bool isr_service_installed = false;
+    if (!isr_service_installed) {
+        gpio_install_isr_service(0);
+        isr_service_installed = true;
+    }
     gpio_set_intr_type((gpio_num_t)pin, (gpio_int_type_t)mode);
     gpio_isr_handler_add((gpio_num_t)pin, handler, arg);
     gpio_intr_enable((gpio_num_t)pin);
@@ -258,15 +284,5 @@ inline void xt_wsr_ps(uint32_t ps) {
 #undef F_CPU
 #endif
 #define F_CPU (CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ * 1000000L)
-
-// Handle ESPHome namespacing
-#ifdef USE_ESPHOME
-namespace esphome {
-    uint32_t micros();
-    uint32_t millis();
-}
-using esphome::micros;
-using esphome::millis;
-#endif
 
 #endif // ARDUINO
