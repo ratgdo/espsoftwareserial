@@ -1,6 +1,6 @@
 idf_component_register(
     SRCS "src/SoftwareSerial.cpp" "src/esp_idf_compat.cpp"
-    INCLUDE_DIRS "src"
+    INCLUDE_DIRS "." "src"
     REQUIRES "driver" "esp_timer" "freertos"
     PRIV_REQUIRES "esp_rom"
 )
