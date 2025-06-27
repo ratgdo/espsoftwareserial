@@ -1,0 +1,5 @@
+dependencies:
+  dok-net/ghostl: ">=1.0.0"
+  
+description: "Implementation of the Arduino software serial for ESP8266/ESP32"
+version: "8.2.0"

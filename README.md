@@ -2,6 +2,8 @@
 
 ## Implementation of the Arduino software serial library for the ESP8266 / ESP32 family
 
+Now with ESP-IDF support!
+
 This fork implements interrupt service routine best practice.
 In the receive interrupt, instead of blocking for whole bytes
 at a time - voiding any near-realtime behavior of the CPU - only level
@@ -169,3 +171,30 @@ $ cd libraries/SoftwareSerial
 $ git checkout main
 $ git pull
 ```
+
+## ESP-IDF Support
+
+This library now supports ESP-IDF framework in addition to Arduino. To use with ESP-IDF:
+
+1. Add this component to your project:
+   ```bash
+   cd your-esp-idf-project
+   mkdir -p components
+   cd components
+   git clone https://github.com/ratgdo/espsoftwareserial.git
+   ```
+
+2. Include in your project's CMakeLists.txt or use as a component.
+
+3. Example usage:
+   ```cpp
+   #include "SoftwareSerial.h"
+   
+   extern "C" void app_main(void) {
+       EspSoftwareSerial::UART swSerial;
+       swSerial.begin(9600, EspSoftwareSerial::SWSERIAL_8N1, 16, 17);
+       swSerial.println("Hello from ESP-IDF!");
+   }
+   ```
+
+See `examples/esp_idf_example` for a complete example.
