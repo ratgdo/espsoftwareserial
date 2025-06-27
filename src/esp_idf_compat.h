@@ -148,15 +148,19 @@ public:
     virtual int peek() = 0;
     virtual void flush() = 0;
     
-    size_t readBytes(char *buffer, size_t length) {
+    virtual size_t readBytes(uint8_t *buffer, size_t length) {
         size_t count = 0;
         while (count < length) {
             int c = read();
             if (c < 0) break;
-            *buffer++ = (char)c;
+            *buffer++ = (uint8_t)c;
             count++;
         }
         return count;
+    }
+    
+    virtual size_t readBytes(char *buffer, size_t length) {
+        return readBytes((uint8_t*)buffer, length);
     }
 };
 
