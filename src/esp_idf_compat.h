@@ -11,6 +11,10 @@
 #include "freertos/task.h"
 #include "esp_rom_sys.h"
 #include "soc/gpio_struct.h"
+#include "hal/gpio_hal.h"
+#include "hal/gpio_ll.h"
+#include "soc/soc_caps.h"
+#include "esp_intr_alloc.h"
 #ifdef CONFIG_SPIRAM
 #include "esp_psram.h"
 #endif
@@ -58,14 +62,17 @@ inline int digitalRead(uint8_t pin) {
     return gpio_get_level((gpio_num_t)pin);
 }
 
-// Timing functions
+// NOP for timing loops
+#define NOP() asm volatile ("nop")
+
+// Timing functions - exact Arduino implementation
 #ifndef USE_ESPHOME
-inline unsigned long millis() {
-    return (unsigned long)(esp_timer_get_time() / 1000);
+inline unsigned long IRAM_ATTR micros() {
+    return (unsigned long)(esp_timer_get_time());
 }
 
-inline unsigned long micros() {
-    return (unsigned long)esp_timer_get_time();
+inline unsigned long IRAM_ATTR millis() {
+    return (unsigned long)(esp_timer_get_time() / 1000ULL);
 }
 #else
 // For ESPHome, make sure we have proper declarations
@@ -78,22 +85,22 @@ using esphome::micros;
 using esphome::millis;
 #endif
 
-inline void delay(unsigned long ms) {
+inline void delay(uint32_t ms) {
     vTaskDelay(ms / portTICK_PERIOD_MS);
 }
 
-inline void delayMicroseconds(unsigned int us) {
-    if (us > 0) {
-        esp_rom_delay_us(us);
-    }
-}
-
-// For more precise timing
-inline void IRAM_ATTR delayMicrosecondsHard(uint32_t us) {
-    if (us > 0) {
-        uint32_t start = (uint32_t)esp_timer_get_time();
-        while (((uint32_t)esp_timer_get_time() - start) < us) {
-            // busy wait
+// Arduino's exact delayMicroseconds implementation
+inline void IRAM_ATTR delayMicroseconds(uint32_t us) {
+    uint64_t m = (uint64_t)esp_timer_get_time();
+    if (us) {
+        uint64_t e = (m + us);
+        if (m > e) { //overflow
+            while ((uint64_t)esp_timer_get_time() > e) {
+                NOP();
+            }
+        }
+        while ((uint64_t)esp_timer_get_time() < e) {
+            NOP();
         }
     }
 }
@@ -107,15 +114,35 @@ inline int digitalPinToInterrupt(uint8_t pin) {
     return pin;
 }
 
+// Arduino ISR flag
+#ifdef CONFIG_ESP_SYSTEM_CHECK_INT_LEVEL_4
+#define ARDUINO_ISR_FLAG ESP_INTR_FLAG_IRAM
+#else  
+#define ARDUINO_ISR_FLAG (0)
+#endif
+
 inline void attachInterruptArg(uint8_t pin, void (*handler)(void*), void* arg, int mode) {
-    static bool isr_service_installed = false;
-    if (!isr_service_installed) {
-        gpio_install_isr_service(0);
-        isr_service_installed = true;
+    static bool interrupt_initialized = false;
+    
+    if (pin >= SOC_GPIO_PIN_COUNT) {
+        return;
     }
+    
+    if (!interrupt_initialized) {
+        esp_err_t err = gpio_install_isr_service((int)ARDUINO_ISR_FLAG);
+        interrupt_initialized = (err == ESP_OK) || (err == ESP_ERR_INVALID_STATE);
+    }
+    if (!interrupt_initialized) {
+        return;
+    }
+    
     gpio_set_intr_type((gpio_num_t)pin, (gpio_int_type_t)mode);
     gpio_isr_handler_add((gpio_num_t)pin, handler, arg);
-    gpio_intr_enable((gpio_num_t)pin);
+    
+    // Enable input in GPIO register (important for peripherals outputs)
+    gpio_hal_context_t gpiohal;
+    gpiohal.dev = GPIO_LL_GET_HW(GPIO_PORT_0);
+    gpio_hal_input_enable(&gpiohal, pin);
 }
 
 inline void detachInterrupt(uint8_t pin) {
@@ -124,15 +151,15 @@ inline void detachInterrupt(uint8_t pin) {
 }
 
 // ESP specific functions
+#include "esp_cpu.h"
+
 class ESPClass {
 public:
-    static uint32_t getCycleCount() {
-        uint32_t count;
-        __asm__ __volatile__("rsr %0,ccount":"=a" (count));
-        return count;
+    inline uint32_t IRAM_ATTR getCycleCount() __attribute__((always_inline)) {
+        return (uint32_t)esp_cpu_get_cycle_count();
     }
     
-    static uint32_t getCpuFreqMHz() {
+    inline uint32_t getCpuFreqMHz() {
         return CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ;
     }
 };
@@ -230,8 +257,7 @@ inline void optimistic_yield(uint32_t interval_us) {
 #define pgm_read_byte(addr) (*(const uint8_t *)(addr))
 #define PSTR(str) (str)
 
-// GPIO register access functions (ESP32 specific)
-#ifdef CONFIG_IDF_TARGET_ESP32
+// GPIO register access functions
 inline volatile uint32_t* portOutputRegister(uint8_t port) {
     return (volatile uint32_t*)&GPIO.out;
 }
@@ -241,13 +267,16 @@ inline volatile uint32_t* portInputRegister(uint8_t port) {
 }
 
 inline uint32_t digitalPinToBitMask(uint8_t pin) {
-    return (1UL << pin);
+    if (pin < 32) {
+        return (1UL << pin);
+    } else {
+        return (1UL << (pin - 32));
+    }
 }
 
 inline uint8_t digitalPinToPort(uint8_t pin) {
-    return 0; // ESP32 has single GPIO port
+    return pin < 32 ? 0 : 1;
 }
-#endif
 
 // ESP8266 compatibility
 #ifdef ESP8266
