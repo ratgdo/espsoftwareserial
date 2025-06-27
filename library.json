@@ -35,6 +35,6 @@
     },
     "dependencies":
     {
-        "ratgdo/ghostl": "^1.0.1"
+        "ghostl": "https://github.com/ratgdo/ghostl.git#^1.0.1"
     }
 }
