@@ -11,6 +11,9 @@
 #include "freertos/task.h"
 #include "esp_rom_sys.h"
 #include "soc/gpio_struct.h"
+#ifdef CONFIG_SPIRAM
+#include "esp_psram.h"
+#endif
 
 // Arduino compatibility types
 typedef uint8_t byte;
@@ -102,6 +105,15 @@ public:
 };
 
 extern ESPClass ESP;
+
+// PSRAM detection
+inline bool psramFound() {
+#ifdef CONFIG_SPIRAM
+    return esp_psram_is_initialized();
+#else
+    return false;
+#endif
+}
 
 // Stream base class replacement
 class Print {
