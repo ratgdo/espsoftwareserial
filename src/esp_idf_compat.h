@@ -212,7 +212,9 @@ inline uint8_t digitalPinToPort(uint8_t pin) {
 
 // Critical section handling
 typedef portMUX_TYPE portMUX_TYPE;
-#define portMUX_INITIALIZER_UNLOCKED portMUX_INITIALIZER_UNLOCKED
+#ifndef portMUX_INITIALIZER_UNLOCKED
+#define portMUX_INITIALIZER_UNLOCKED SPINLOCK_INITIALIZER
+#endif
 
 // ESP8266 emulation functions for ESP32
 inline uint32_t xt_rsil(uint32_t level) {
