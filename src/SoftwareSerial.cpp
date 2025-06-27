@@ -531,7 +531,7 @@ void UARTBase::rxBits(const uint32_t isrTick) {
             m_rxCurByte >>= dataBits;
             if (level) { m_rxCurByte |= (BYTE_ALL_BITS_SET << (8 - dataBits)); }
             if (m_autoBaud) {
-                m_rxByteTicks += ticks;
+                m_rxByteTicks += ticksDiff;
             }
             continue;
         }

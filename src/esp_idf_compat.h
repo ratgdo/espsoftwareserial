@@ -23,6 +23,11 @@ typedef bool boolean;
 #define INPUT GPIO_MODE_INPUT
 #define OUTPUT GPIO_MODE_OUTPUT
 #define INPUT_PULLUP GPIO_MODE_INPUT
+#define OUTPUT_OPEN_DRAIN GPIO_MODE_OUTPUT_OD
+
+// Pin levels
+#define HIGH 1
+#define LOW 0
 
 // Digital I/O functions
 inline void pinMode(uint8_t pin, uint8_t mode) {
@@ -31,11 +36,13 @@ inline void pinMode(uint8_t pin, uint8_t mode) {
     
     if (mode == OUTPUT) {
         io_conf.mode = GPIO_MODE_OUTPUT;
+    } else if (mode == OUTPUT_OPEN_DRAIN) {
+        io_conf.mode = GPIO_MODE_OUTPUT_OD;
     } else if (mode == INPUT) {
         io_conf.mode = GPIO_MODE_INPUT;
-        if (mode == INPUT_PULLUP) {
-            io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-        }
+    } else if (mode == INPUT_PULLUP) {
+        io_conf.mode = GPIO_MODE_INPUT;
+        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
     }
     
     io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -142,11 +149,20 @@ public:
 };
 
 class Stream : public Print {
+protected:
+    unsigned long _timeout = 1000;  // Default timeout of 1 second
+    
 public:
+    Stream() {}
+    
     virtual int available() = 0;
     virtual int read() = 0;
     virtual int peek() = 0;
     virtual void flush() = 0;
+    
+    void setTimeout(unsigned long timeout) {
+        _timeout = timeout;
+    }
     
     virtual size_t readBytes(uint8_t *buffer, size_t length) {
         size_t count = 0;
@@ -173,6 +189,15 @@ public:
 // Yield function
 inline void yield() {
     vTaskDelay(0);
+}
+
+inline void optimistic_yield(uint32_t interval_us) {
+    static uint32_t last_yield = 0;
+    uint32_t now = micros();
+    if (now - last_yield > interval_us) {
+        yield();
+        last_yield = now;
+    }
 }
 
 // Memory reading
