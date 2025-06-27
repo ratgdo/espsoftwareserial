@@ -149,7 +149,9 @@ public:
 };
 
 // IRAM attributes
-#define IRAM_ATTR IRAM_ATTR
+#ifndef IRAM_ATTR
+#define IRAM_ATTR __attribute__((section(".iram1")))
+#endif
 #define ALWAYS_INLINE_ATTR inline __attribute__((always_inline))
 
 // Yield function
