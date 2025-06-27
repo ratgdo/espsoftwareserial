@@ -9,7 +9,7 @@
     {
         "type": "git",
         "url": "https://github.com/ratgdo/espsoftwareserial",
-	"branch": "autobaud"
+	"branch": "ratgdo"
     },
     "authors": [
         {
