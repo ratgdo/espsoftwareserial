@@ -22,6 +22,8 @@
 // Arduino compatibility types
 typedef uint8_t byte;
 typedef bool boolean;
+typedef void (*voidFuncPtr)(void);
+typedef void (*voidFuncPtrArg)(void *);
 
 // Pin modes - match Arduino exactly
 #define INPUT             0x01
@@ -37,18 +39,18 @@ typedef bool boolean;
 #define LOW 0
 
 // Digital I/O functions
-inline void IRAM_ATTR pinMode(uint8_t pin, uint8_t mode) {
+// Force inline to avoid IRAM relocation issues
+static inline void IRAM_ATTR __attribute__((always_inline)) pinMode(uint8_t pin, uint8_t mode) {
     if (pin >= SOC_GPIO_PIN_COUNT) {
         return;
     }
 
-    gpio_config_t conf = {
-        .pin_bit_mask = (1ULL << pin),
-        .mode = GPIO_MODE_DISABLE,
-        .pull_up_en = GPIO_PULLUP_DISABLE,
-        .pull_down_en = GPIO_PULLDOWN_DISABLE,
-        .intr_type = GPIO_INTR_DISABLE
-    };
+    gpio_config_t conf;
+    conf.pin_bit_mask = (1ULL << pin);
+    conf.mode = GPIO_MODE_DISABLE;
+    conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    conf.intr_type = GPIO_INTR_DISABLE;
 
     if (mode < 0x20) { // io mode
         conf.mode = (gpio_mode_t)(mode & (INPUT | OUTPUT));
@@ -66,14 +68,14 @@ inline void IRAM_ATTR pinMode(uint8_t pin, uint8_t mode) {
     gpio_config(&conf);
 }
 
-inline void IRAM_ATTR digitalWrite(uint8_t pin, uint8_t val) {
+static inline void IRAM_ATTR __attribute__((always_inline)) digitalWrite(uint8_t pin, uint8_t val) {
     if (pin >= SOC_GPIO_PIN_COUNT) {
         return;
     }
     gpio_set_level((gpio_num_t)pin, val);
 }
 
-inline int IRAM_ATTR digitalRead(uint8_t pin) {
+static inline int IRAM_ATTR __attribute__((always_inline)) digitalRead(uint8_t pin) {
     if (pin >= SOC_GPIO_PIN_COUNT) {
         return 0;
     }
