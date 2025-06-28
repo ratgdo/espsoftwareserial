@@ -136,18 +136,24 @@ inline void attachInterruptArg(uint8_t pin, void (*handler)(void*), void* arg, i
         return;
     }
     
+    // Set interrupt type
     gpio_set_intr_type((gpio_num_t)pin, (gpio_int_type_t)mode);
+    
+    // Add ISR handler
     gpio_isr_handler_add((gpio_num_t)pin, handler, arg);
     
     // Enable input in GPIO register (important for peripherals outputs)
     gpio_hal_context_t gpiohal;
     gpiohal.dev = GPIO_LL_GET_HW(GPIO_PORT_0);
     gpio_hal_input_enable(&gpiohal, pin);
+    
+    // Enable the interrupt
+    gpio_intr_enable((gpio_num_t)pin);
 }
 
 inline void detachInterrupt(uint8_t pin) {
-    gpio_intr_disable((gpio_num_t)pin);
     gpio_isr_handler_remove((gpio_num_t)pin);
+    gpio_set_intr_type((gpio_num_t)pin, GPIO_INTR_DISABLE);
 }
 
 // ESP specific functions
