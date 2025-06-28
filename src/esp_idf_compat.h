@@ -23,42 +23,60 @@
 typedef uint8_t byte;
 typedef bool boolean;
 
-// Pin modes
-#define INPUT GPIO_MODE_INPUT
-#define OUTPUT GPIO_MODE_OUTPUT
-#define INPUT_PULLUP GPIO_MODE_INPUT
-#define OUTPUT_OPEN_DRAIN GPIO_MODE_OUTPUT_OD
+// Pin modes - match Arduino exactly
+#define INPUT             0x01
+#define OUTPUT            0x03
+#define PULLUP            0x04
+#define INPUT_PULLUP      0x05
+#define INPUT_PULLDOWN    0x09
+#define OPEN_DRAIN        0x10
+#define OUTPUT_OPEN_DRAIN 0x13
 
 // Pin levels
 #define HIGH 1
 #define LOW 0
 
 // Digital I/O functions
-inline void pinMode(uint8_t pin, uint8_t mode) {
-    gpio_config_t io_conf = {};
-    io_conf.pin_bit_mask = (1ULL << pin);
-    
-    if (mode == OUTPUT) {
-        io_conf.mode = GPIO_MODE_OUTPUT;
-    } else if (mode == OUTPUT_OPEN_DRAIN) {
-        io_conf.mode = GPIO_MODE_OUTPUT_OD;
-    } else if (mode == INPUT) {
-        io_conf.mode = GPIO_MODE_INPUT;
-    } else if (mode == INPUT_PULLUP) {
-        io_conf.mode = GPIO_MODE_INPUT;
-        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+inline void IRAM_ATTR pinMode(uint8_t pin, uint8_t mode) {
+    if (pin >= SOC_GPIO_PIN_COUNT) {
+        return;
     }
-    
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    gpio_config(&io_conf);
+
+    gpio_config_t conf = {
+        .pin_bit_mask = (1ULL << pin),
+        .mode = GPIO_MODE_DISABLE,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+
+    if (mode < 0x20) { // io mode
+        conf.mode = (gpio_mode_t)(mode & (INPUT | OUTPUT));
+        if (mode & OPEN_DRAIN) {
+            conf.mode = (gpio_mode_t)(conf.mode | GPIO_MODE_OUTPUT_OD);
+        }
+        if (mode & PULLUP) {
+            conf.pull_up_en = GPIO_PULLUP_ENABLE;
+        }
+        if (mode & INPUT_PULLDOWN) {
+            conf.pull_down_en = GPIO_PULLDOWN_ENABLE;
+        }
+    }
+
+    gpio_config(&conf);
 }
 
-inline void digitalWrite(uint8_t pin, uint8_t val) {
+inline void IRAM_ATTR digitalWrite(uint8_t pin, uint8_t val) {
+    if (pin >= SOC_GPIO_PIN_COUNT) {
+        return;
+    }
     gpio_set_level((gpio_num_t)pin, val);
 }
 
-inline int digitalRead(uint8_t pin) {
+inline int IRAM_ATTR digitalRead(uint8_t pin) {
+    if (pin >= SOC_GPIO_PIN_COUNT) {
+        return 0;
+    }
     return gpio_get_level((gpio_num_t)pin);
 }
 
@@ -209,18 +227,25 @@ public:
 
 class Stream : public Print {
 protected:
-    unsigned long _timeout = 1000;  // Default timeout of 1 second
+    unsigned long _timeout;      // number of milliseconds to wait for the next char before aborting timed read
+    unsigned long _startMillis;  // used for timeout measurement
     
 public:
-    Stream() {}
+    Stream() {
+        _timeout = 1000;
+    }
     
     virtual int available() = 0;
     virtual int read() = 0;
     virtual int peek() = 0;
-    virtual void flush() = 0;
+    virtual void flush() {}  // Make flush optional like Arduino
     
     void setTimeout(unsigned long timeout) {
         _timeout = timeout;
+    }
+    
+    unsigned long getTimeout(void) {
+        return _timeout;
     }
     
     virtual size_t readBytes(uint8_t *buffer, size_t length) {
@@ -246,18 +271,13 @@ public:
 #define ALWAYS_INLINE_ATTR inline __attribute__((always_inline))
 
 // Yield function
+void vPortYield(void);  // Forward declaration from FreeRTOS
 inline void yield() {
-    vTaskDelay(0);
+    vPortYield();
 }
 
-inline void optimistic_yield(uint32_t interval_us) {
-    static uint32_t last_yield = 0;
-    uint32_t now = micros();
-    if (now - last_yield > interval_us) {
-        yield();
-        last_yield = now;
-    }
-}
+// Arduino defines this as a no-op
+#define optimistic_yield(u)
 
 // Memory reading
 #define pgm_read_byte(addr) (*(const uint8_t *)(addr))
@@ -265,23 +285,21 @@ inline void optimistic_yield(uint32_t interval_us) {
 
 // GPIO register access functions
 inline volatile uint32_t* portOutputRegister(uint8_t port) {
-    return (volatile uint32_t*)&GPIO.out;
+    if (port == 0) return (volatile uint32_t*)&GPIO.out;
+    else return (volatile uint32_t*)&GPIO.out1.val;
 }
 
 inline volatile uint32_t* portInputRegister(uint8_t port) {
-    return (volatile uint32_t*)&GPIO.in;
+    if (port == 0) return (volatile uint32_t*)&GPIO.in;
+    else return (volatile uint32_t*)&GPIO.in1.val;
 }
 
 inline uint32_t digitalPinToBitMask(uint8_t pin) {
-    if (pin < 32) {
-        return (1UL << pin);
-    } else {
-        return (1UL << (pin - 32));
-    }
+    return (1UL << (pin & 31));
 }
 
 inline uint8_t digitalPinToPort(uint8_t pin) {
-    return pin < 32 ? 0 : 1;
+    return pin >> 5;  // pin / 32
 }
 
 // ESP8266 compatibility
